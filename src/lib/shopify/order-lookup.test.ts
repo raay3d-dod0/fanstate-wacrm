@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 vi.mock('./admin', () => ({
   shopifyAdminConfigured: vi.fn(() => true),
@@ -42,6 +42,10 @@ describe('orderPhoneMatches', () => {
   it('refuses a different number or no number', () => {
     expect(orderPhoneMatches(base, '919000000000')).toBe(false)
     expect(orderPhoneMatches(base, null)).toBe(false)
+  })
+  it('needs the full number: same last 10 digits in another country is not a match', () => {
+    expect(orderPhoneMatches(base, '19876543210')).toBe(false)
+    expect(orderPhoneMatches(base, '449876543210')).toBe(false)
   })
 })
 
@@ -88,24 +92,36 @@ describe('describeOrder', () => {
 })
 
 describe('lookupOrderForContact', () => {
-  beforeEach(() => vi.mocked(shopifyGraphql).mockReset())
+  const ACC = 'acc-fanstate'
+  beforeEach(() => {
+    vi.mocked(shopifyGraphql).mockReset()
+    vi.stubEnv('SHOPIFY_ACCOUNT_ID', ACC)
+  })
+  afterEach(() => vi.unstubAllEnvs())
+
+  it('refuses any other CRM account (the store belongs to one account)', async () => {
+    vi.mocked(shopifyGraphql).mockResolvedValue({ orders: { nodes: [base] } })
+    const r = await lookupOrderForContact('#1003', '919876543210', 'someone-else')
+    expect(r).toMatchObject({ status: 'error', answered: false, orderName: null })
+    expect(shopifyGraphql).not.toHaveBeenCalled()
+  })
 
   it('answers when the phone matches', async () => {
     vi.mocked(shopifyGraphql).mockResolvedValue({ orders: { nodes: [base] } })
-    const r = await lookupOrderForContact('#1003', '919876543210')
+    const r = await lookupOrderForContact('#1003', '919876543210', ACC)
     expect(r.status).toBe('confirmed')
     expect(vi.mocked(shopifyGraphql).mock.calls[0][1]).toEqual({ q: 'name:#1003' })
   })
   it('does not reveal someone else\'s order', async () => {
     vi.mocked(shopifyGraphql).mockResolvedValue({ orders: { nodes: [base] } })
-    const r = await lookupOrderForContact('#1003', '919000000000')
-    expect(r).toMatchObject({ status: 'phone_mismatch', answered: false, reply: null })
+    const r = await lookupOrderForContact('#1003', '919000000000', ACC)
+    expect(r).toMatchObject({ status: 'phone_mismatch', answered: false, reply: null, orderName: null })
   })
   it('not found / bad number / Shopify down → hand to a person', async () => {
     vi.mocked(shopifyGraphql).mockResolvedValue({ orders: { nodes: [] } })
-    expect((await lookupOrderForContact('#9999', '919876543210')).status).toBe('not_found')
-    expect((await lookupOrderForContact('hello', '919876543210')).status).toBe('invalid_number')
+    expect((await lookupOrderForContact('#9999', '919876543210', ACC)).status).toBe('not_found')
+    expect((await lookupOrderForContact('hello', '919876543210', ACC)).status).toBe('invalid_number')
     vi.mocked(shopifyGraphql).mockResolvedValue({ orders: null } as never) // broken Shopify reply
-    expect((await lookupOrderForContact('#1003', '919876543210')).status).toBe('error')
+    expect((await lookupOrderForContact('#1003', '919876543210', ACC)).status).toBe('error')
   })
 })

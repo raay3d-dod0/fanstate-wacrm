@@ -80,16 +80,22 @@ export function parseOrderNumber(text: string | null | undefined): string | null
   return m ? m[1] : null
 }
 
-function lastTen(phone: string | null | undefined): string | null {
+/** Contacts store the WhatsApp id: full international digits, no "+". */
+function contactE164(phone: string | null | undefined): string | null {
   const digits = (phone ?? '').replace(/\D/g, '')
-  return digits.length >= 10 ? digits.slice(-10) : null
+  return digits.length >= 8 ? `+${digits}` : null
 }
 
+/**
+ * Exact match on the full international number. Only the order side
+ * gets the "no country code means India" treatment, because that is
+ * where a customer types a bare 10-digit number at checkout.
+ */
 export function orderPhoneMatches(order: LookupOrder, contactPhone: string | null | undefined): boolean {
-  const asking = lastTen(contactPhone)
+  const asking = contactE164(contactPhone)
   if (!asking) return false
   return [order.phone, order.shippingAddress?.phone, order.billingAddress?.phone].some(
-    (p) => lastTen(normalizeOrderPhone(p) ?? p) === asking,
+    (p) => normalizeOrderPhone(p) === asking,
   )
 }
 
@@ -138,27 +144,39 @@ export function describeOrder(order: LookupOrder): OrderLookupResult {
   }
 }
 
+/**
+ * The Shopify credentials are one store's, so only the CRM account that
+ * owns that store (SHOPIFY_ACCOUNT_ID) may look orders up. Every other
+ * account fails closed.
+ */
+export function accountMayLookUpOrders(accountId: string | null | undefined): boolean {
+  const owner = process.env.SHOPIFY_ACCOUNT_ID
+  return Boolean(owner && accountId && owner === accountId)
+}
+
 export async function lookupOrderForContact(
   orderText: string | null | undefined,
   contactPhone: string | null | undefined,
+  accountId: string | null | undefined,
 ): Promise<OrderLookupResult> {
   const empty = { answered: false, reply: null, trackingUrl: null }
+  if (!accountMayLookUpOrders(accountId)) return { ...empty, status: 'error', orderName: null }
   const number = parseOrderNumber(orderText)
   if (!number) return { ...empty, status: 'invalid_number', orderName: null }
-  if (!shopifyAdminConfigured()) return { ...empty, status: 'error', orderName: `#${number}` }
+  if (!shopifyAdminConfigured()) return { ...empty, status: 'error', orderName: null }
 
   try {
     const data = await shopifyGraphql<{ orders: { nodes: LookupOrder[] } }>(ORDER_QUERY, {
       q: `name:#${number}`,
     })
     const order = data.orders.nodes[0]
-    if (!order) return { ...empty, status: 'not_found', orderName: `#${number}` }
+    if (!order) return { ...empty, status: 'not_found', orderName: null }
     if (!orderPhoneMatches(order, contactPhone)) {
-      return { ...empty, status: 'phone_mismatch', orderName: order.name }
+      return { ...empty, status: 'phone_mismatch', orderName: null }
     }
     return describeOrder(order)
   } catch (err) {
     console.error('[order-lookup] Shopify lookup failed', err)
-    return { ...empty, status: 'error', orderName: `#${number}` }
+    return { ...empty, status: 'error', orderName: null }
   }
 }

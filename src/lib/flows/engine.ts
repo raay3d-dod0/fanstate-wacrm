@@ -795,6 +795,7 @@ async function advanceFromNodeKey(
       const result = await lookupOrderForContact(
         typeof raw === "string" ? raw : raw == null ? null : String(raw),
         (contact as { phone?: string | null } | null)?.phone ?? null,
+        run.account_id,
       );
       const newVars = {
         ...run.vars,
