@@ -6,15 +6,15 @@ const req = (headers: Record<string, string>, url = 'https://crm.example/api/fas
   new Request(url, { method: 'POST', headers })
 
 describe('fastrrRequestAuthorized', () => {
-  it('accepts the key as Bearer, custom header, or ?key=', () => {
+  it('accepts the key as Bearer or a custom header', () => {
     expect(fastrrRequestAuthorized(req({ authorization: 'Bearer s3cret' }), 's3cret')).toBe(true)
     expect(fastrrRequestAuthorized(req({ key: 's3cret' }), 's3cret')).toBe(true)
     expect(fastrrRequestAuthorized(req({ 'x-api-key': 's3cret' }), 's3cret')).toBe(true)
-    expect(fastrrRequestAuthorized(req({}, 'https://crm.example/x?key=s3cret'), 's3cret')).toBe(true)
   })
   it('rejects a wrong or missing key, and an unset secret', () => {
     expect(fastrrRequestAuthorized(req({ key: 'nope' }), 's3cret')).toBe(false)
     expect(fastrrRequestAuthorized(req({}), 's3cret')).toBe(false)
+    expect(fastrrRequestAuthorized(req({}, 'https://crm.example/x?key=s3cret'), 's3cret')).toBe(false)
     expect(fastrrRequestAuthorized(req({ key: 's3cret' }), undefined)).toBe(false)
   })
 })

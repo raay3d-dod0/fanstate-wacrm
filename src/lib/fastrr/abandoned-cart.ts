@@ -18,7 +18,8 @@ function safeEqual(a: string, b: string): boolean {
 /**
  * Fastrr's webhook form lets the merchant add a header; integrations
  * use either `Authorization: Bearer <key>` or a custom header such as
- * `key: <key>`. Accept those, `x-api-key`, or `?key=` on the URL.
+ * `key: <key>`. Accept those or `x-api-key`. Never in the URL: URLs end
+ * up in access logs.
  */
 export function fastrrRequestAuthorized(request: Request, secret: string | undefined): boolean {
   if (!secret) return false
@@ -30,8 +31,6 @@ export function fastrrRequestAuthorized(request: Request, secret: string | undef
     const v = h.get(name)
     if (v) candidates.push(v.trim())
   }
-  const q = new URL(request.url).searchParams.get('key')
-  if (q) candidates.push(q.trim())
   return candidates.some((c) => safeEqual(c, secret))
 }
 
