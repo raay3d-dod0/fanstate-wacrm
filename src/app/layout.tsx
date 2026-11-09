@@ -59,6 +59,14 @@ const metadata: Metadata = {
 export const viewport: Viewport = {
   themeColor: "#0b0b0c",
   colorScheme: "dark light",
+  width: "device-width",
+  initialScale: 1,
+  // Draw under the notch / home indicator; padding comes from the
+  // safe-area rules in globals.css.
+  viewportFit: "cover",
+  // Android: shrink the layout when the keyboard opens instead of
+  // letting it cover the composer.
+  interactiveWidget: "resizes-content",
 };
 
 // Inline boot script — runs before React hydrates so the user's

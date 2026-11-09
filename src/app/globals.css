@@ -264,3 +264,35 @@ html[data-theme="rose"] {
 .brand-logo-dark { display: block; }
 html[data-mode="light"] .brand-logo-light { display: block; }
 html[data-mode="light"] .brand-logo-dark { display: none; }
+
+/* ---- Mobile / installed-app polish ----
+ * iOS Safari and Android Chrome zoom the page when a focused form field
+ * renders below 16px, and often stay zoomed afterwards. On touch devices
+ * lift every field to 16px; the !important is needed to beat Tailwind's
+ * text-sm utility on the same element. Desktop keeps the compact 14px. */
+@media (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  textarea,
+  select,
+  [contenteditable="true"] {
+    font-size: 16px !important;
+  }
+}
+
+/* Respect the notch and home indicator when installed to the home screen. */
+@media (display-mode: standalone) {
+  body {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+}
+
+/* Installed app: no rubber-band overscroll on the shell, no tap flash. */
+@media (display-mode: standalone) {
+  html, body {
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
