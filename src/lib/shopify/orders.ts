@@ -11,9 +11,16 @@ export interface ShopifyAddress {
   first_name?: string | null
   last_name?: string | null
   phone?: string | null
+  city?: string | null
+  zip?: string | null
+  province_code?: string | null
+  country_code?: string | null
 }
 
 export interface ShopifyLineItem {
+  product_id?: number | null
+  variant_id?: number | null
+  price?: string | null
   title?: string | null
   variant_title?: string | null
   quantity?: number | null
@@ -30,7 +37,12 @@ export interface ShopifyOrder {
   currency?: string | null
   total_price?: string | null
   current_total_price?: string | null
-  customer?: (ShopifyAddress & { default_address?: ShopifyAddress | null }) | null
+  test?: boolean | null
+  browser_ip?: string | null
+  landing_site?: string | null
+  client_details?: { user_agent?: string | null } | null
+  note_attributes?: Array<{ name?: string | null; value?: string | null }> | null
+  customer?: (ShopifyAddress & { id?: number | null; default_address?: ShopifyAddress | null }) | null
   billing_address?: ShopifyAddress | null
   shipping_address?: ShopifyAddress | null
   line_items?: ShopifyLineItem[] | null

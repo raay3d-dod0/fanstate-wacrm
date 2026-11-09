@@ -2,6 +2,8 @@ import { NextResponse, after } from 'next/server'
 
 import { supabaseAdmin } from '@/lib/flows/admin-client'
 import { resolveConversationByPhone } from '@/lib/whatsapp/resolve-conversation'
+import { findExistingContact } from '@/lib/contacts/dedupe'
+import { buildPurchaseEvent, metaCapiConfigured, sendCapiEvents } from '@/lib/meta/capi'
 import { sendMessageToConversation } from '@/lib/whatsapp/send-message'
 import {
   verifyShopifyHmac,
@@ -99,6 +101,13 @@ export async function POST(request: Request) {
 
   const rowId = (inserted[0] as { id: string }).id
   after(async () => {
+    // Meta first: it must see the buyer as they were before this order
+    // (sending the WhatsApp creates the contact if it didn't exist).
+    try {
+      await sendPurchaseToMeta(rowId, accountId, order, phone)
+    } catch (error) {
+      console.error('[shopify-orders] Meta purchase failed', order.id, error)
+    }
     try {
       await sendOrderConfirmed(rowId, accountId, order, phone)
     } catch (error) {
@@ -171,4 +180,60 @@ async function sendOrderConfirmed(
     whatsapp_message_id: result.whatsappMessageId,
     whatsapp_error: null,
   })
+}
+
+/**
+ * Did this buyer message the shop on WhatsApp before ordering? Then the
+ * order is tagged as a WhatsApp-chat sale in Meta (custom_data).
+ */
+async function hadWhatsappChatBefore(
+  accountId: string,
+  phone: string | null,
+  orderCreatedAt: string | null | undefined,
+): Promise<boolean> {
+  if (!phone) return false
+  const db = supabaseAdmin()
+  const contact = await findExistingContact(db, accountId, phone.replace(/^\+/, ''))
+  if (!contact) return false
+  const { data: convs } = await db
+    .from('conversations')
+    .select('id')
+    .eq('account_id', accountId)
+    .eq('contact_id', (contact as { id: string }).id)
+  const ids = ((convs ?? []) as Array<{ id: string }>).map((c) => c.id)
+  if (ids.length === 0) return false
+  const { count } = await db
+    .from('messages')
+    .select('id', { count: 'exact', head: true })
+    .in('conversation_id', ids)
+    .eq('sender_type', 'customer')
+    .lte('created_at', orderCreatedAt ?? new Date().toISOString())
+  return (count ?? 0) > 0
+}
+
+async function sendPurchaseToMeta(
+  rowId: string,
+  accountId: string,
+  order: ShopifyOrder,
+  phone: string | null,
+) {
+  const db = supabaseAdmin()
+  const mark = async (patch: Record<string, unknown>) => {
+    const { error } = await db.from('shopify_orders').update(patch).eq('id', rowId)
+    if (error) console.warn('[shopify-orders] could not record Meta status', error.message)
+  }
+  if (!metaCapiConfigured()) return
+  const whatsappChat = await hadWhatsappChatBefore(accountId, phone, order.created_at).catch(() => false)
+  const event = buildPurchaseEvent(order, { whatsappChat })
+  if (!event) {
+    await mark({ meta_status: 'skipped', meta_error: order.test ? 'Test order' : 'Order older than 7 days' })
+    return
+  }
+  try {
+    await sendCapiEvents([event])
+    await mark({ meta_status: 'sent', meta_error: null, whatsapp_chat: whatsappChat })
+  } catch (error) {
+    await mark({ meta_status: 'failed', meta_error: error instanceof Error ? error.message : String(error) })
+    throw error
+  }
 }
