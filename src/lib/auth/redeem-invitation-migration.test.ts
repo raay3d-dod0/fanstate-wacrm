@@ -14,6 +14,10 @@ const tablesWithoutDomainData = new Set([
   "account_invitations",
   "member_presence",
   "pending_message_statuses",
+  // Device push registrations follow the user: redeem_invitation moves
+  // them to the new account (061) rather than treating them as data
+  // that blocks the merge.
+  "push_subscriptions",
 ]);
 
 function accountScopedTables(): Set<string> {

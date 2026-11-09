@@ -23,6 +23,7 @@ import { resumeAwaitingReply, runAutomationsForTrigger } from '@/lib/automations
 import { dispatchInboundToFlows } from '@/lib/flows/engine'
 import { dispatchInboundToAiReply } from '@/lib/ai/auto-reply'
 import { dispatchWebhookEvent } from '@/lib/webhooks/deliver'
+import { sendPushToAccount } from '@/lib/push/send'
 import {
   applyBroadcastRecipientStatus,
   flagBroadcastReply,
@@ -929,6 +930,23 @@ async function processMessage(
     whatsapp_message_id: message.id,
     content_type: contentType,
     text: contentText,
+  })
+
+  // Web Push to every team member's subscribed device. Awaited for the
+  // same `after()` reason as above; `sendPushToAccount` never throws and
+  // no-ops when VAPID keys are not configured.
+  const pushSender = contactRecord.name?.trim() || contactRecord.phone || 'New message'
+  const pushBody =
+    contentType === 'text' && contentText
+      ? contentText.length > 140
+        ? `${contentText.slice(0, 137)}…`
+        : contentText
+      : `Sent a ${contentType}`
+  await sendPushToAccount(supabaseAdmin(), accountId, {
+    title: pushSender,
+    body: pushBody,
+    url: `/inbox?c=${conversation.id}`,
+    tag: `conv-${conversation.id}`,
   })
 }
 

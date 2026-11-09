@@ -19,6 +19,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { SettingsPanelHead } from "./settings-panel-head";
+import { PushNotificationsCard } from "./push-notifications-card";
 
 export function InboxSettings() {
   const { accountId, canEditSettings, profileLoading } = useAuth();
@@ -124,6 +125,8 @@ export function InboxSettings() {
           )}
         </CardContent>
       </Card>
+
+      <PushNotificationsCard />
     </section>
   );
 }

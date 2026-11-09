@@ -2227,6 +2227,15 @@
       "textPlaceholder": "El texto del mensaje que se insertará",
       "cancel": "Cancelar",
       "save": "Guardar"
+    },
+    "push": {
+      "title": "Push notifications on this device",
+      "description": "Get a phone or desktop notification the moment a customer messages. Per device: turn it on from each phone or browser you use.",
+      "toggleLabel": "Notify me about new customer messages",
+      "unsupported": "This browser can't receive push notifications. On iPhone, add the app to your Home Screen first, then try again here.",
+      "denied": "Notifications are blocked for this site in your browser settings. Allow them there, then reload.",
+      "hintOff": "Off on this device.",
+      "hintOn": "On. You'll be notified here when a customer sends a message."
     }
   },
   "SignupPage": {
