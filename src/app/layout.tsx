@@ -61,6 +61,11 @@ export const viewport: Viewport = {
   colorScheme: "dark light",
   width: "device-width",
   initialScale: 1,
+  // Lock page scale. Stops the focus-zoom that iOS and Android apply to
+  // form fields even at 16px in some cases. Pinch-zoom is lost on
+  // Android as a result; acceptable for this internal tool.
+  maximumScale: 1,
+  userScalable: false,
   // Draw under the notch / home indicator; padding comes from the
   // safe-area rules in globals.css.
   viewportFit: "cover",
