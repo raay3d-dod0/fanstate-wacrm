@@ -44,6 +44,11 @@ const metadata: Metadata = {
     ],
     apple: [{ url: "/favicon-192.png" }],
   },
+  appleWebApp: {
+    capable: true,
+    title: "Fanstate",
+    statusBarStyle: "black-translucent",
+  },
   formatDetection: {
     email: false,
     address: false,
@@ -52,7 +57,7 @@ const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#020617",
+  themeColor: "#0b0b0c",
   colorScheme: "dark light",
 };
 
