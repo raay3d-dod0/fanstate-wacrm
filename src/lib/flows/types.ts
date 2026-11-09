@@ -173,6 +173,21 @@ export interface SetTagNodeConfig {
   next_node_key: string;
 }
 
+/**
+ * Looks up a Shopify order (number taken from `flow_runs.vars[order_var]`,
+ * usually captured by a collect_input step), checks the order's phone
+ * matches the contact's WhatsApp number, and writes the result into
+ * vars: `order_status`, `order_status_reply` (ready-to-send text),
+ * `order_tracking_url`. Branches to `found_next` when the reply can go
+ * to the customer, `not_found_next` otherwise (no such order, phone
+ * mismatch, cancelled, or Shopify unreachable). Auto-advances.
+ */
+export interface OrderLookupNodeConfig {
+  order_var: string;
+  found_next: string;
+  not_found_next: string;
+}
+
 // Terminal nodes carry no config — they just stop the run.
 export type EndNodeConfig = Record<string, never>;
 
@@ -193,6 +208,7 @@ export type FlowNodeConfig =
   | { node_type: "collect_input"; config: CollectInputNodeConfig }
   | { node_type: "condition"; config: ConditionNodeConfig }
   | { node_type: "set_tag"; config: SetTagNodeConfig }
+  | { node_type: "order_lookup"; config: OrderLookupNodeConfig }
   | { node_type: "handoff"; config: HandoffNodeConfig }
   | { node_type: "end"; config: EndNodeConfig };
 
@@ -380,6 +396,7 @@ export const AUTO_ADVANCING_NODE_TYPES: ReadonlySet<string> = new Set([
   "send_media",
   "condition",
   "set_tag",
+  "order_lookup",
 ]);
 
 export const MAX_NODES_PER_ADVANCE = 25;

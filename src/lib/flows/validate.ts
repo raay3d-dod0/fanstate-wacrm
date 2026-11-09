@@ -779,6 +779,45 @@ function validateNode(
       break;
     }
 
+    case "order_lookup": {
+      const cfg = node.config as {
+        order_var?: string;
+        found_next?: string;
+        not_found_next?: string;
+      };
+      if (!cfg.order_var?.trim()) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          field: "order_var",
+          message: t("orderLookupNeedsVar"),
+        });
+      }
+      for (const branch of ["found_next", "not_found_next"] as const) {
+        const key = cfg[branch];
+        const label = branch === "found_next" ? "found" : "not found";
+        if (!key) {
+          issues.push({
+            severity: "error",
+            scope: "node",
+            node_key: node.node_key,
+            field: branch,
+            message: t("orderLookupNeedsBranch", { branch: label }),
+          });
+        } else if (!knownKeys.has(key)) {
+          issues.push({
+            severity: "error",
+            scope: "node",
+            node_key: node.node_key,
+            field: branch,
+            message: t("orderLookupMissingBranch", { branch: label, key }),
+          });
+        }
+      }
+      break;
+    }
+
     case "set_tag": {
       const cfg = node.config as {
         mode?: "add" | "remove";
@@ -885,6 +924,16 @@ function outgoingEdges(node: NodeInput): string[] {
       const out: string[] = [];
       if (cfg.true_next) out.push(cfg.true_next);
       if (cfg.false_next) out.push(cfg.false_next);
+      return out;
+    }
+    case "order_lookup": {
+      const cfg = node.config as {
+        found_next?: string;
+        not_found_next?: string;
+      };
+      const out: string[] = [];
+      if (cfg.found_next) out.push(cfg.found_next);
+      if (cfg.not_found_next) out.push(cfg.not_found_next);
       return out;
     }
     case "send_buttons": {

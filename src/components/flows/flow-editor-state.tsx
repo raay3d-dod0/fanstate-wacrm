@@ -204,6 +204,8 @@ export function defaultConfigFor(type: NodeType): Record<string, unknown> {
       };
     case "set_tag":
       return { mode: "add", tag_id: "", next_node_key: "" };
+    case "order_lookup":
+      return { order_var: "order_number", found_next: "", not_found_next: "" };
     case "handoff":
       return { note: "" };
     case "end":

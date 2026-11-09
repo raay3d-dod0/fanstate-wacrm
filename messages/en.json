@@ -1473,6 +1473,10 @@
         "valueLabel": "Value",
         "ifTrueAdvance": "If true → advance to",
         "ifFalseAdvance": "If false → advance to",
+        "orderVarLabel": "Order number variable",
+        "orderVarHelp": "The order number captured earlier (e.g. by Collect input). Saves the result in vars order_status_reply (ready-to-send text), order_status and order_tracking_url. Only answers when the order's phone matches this WhatsApp number.",
+        "orderFoundAdvance": "If found, advance to",
+        "orderNotFoundAdvance": "If not found (or number doesn't match), advance to",
         "actionLabel": "Action",
         "addTag": "Add tag",
         "removeTag": "Remove tag",
@@ -1536,6 +1540,10 @@
         "set_tag": {
           "label": "Tag contact",
           "blurb": "Adds or removes a contact tag"
+        },
+        "order_lookup": {
+          "label": "Look up order",
+          "blurb": "Checks a Shopify order and its status"
         },
         "handoff": {
           "label": "Handoff to agent",
@@ -2645,6 +2653,9 @@
       "operatorNeedsValue": "Operator \"{operator}\" usually expects a comparison value — empty value will only match empty subjects.",
       "conditionNeedsBranch": "Condition needs a node for the \"{branch}\" branch.",
       "conditionMissingBranch": "Condition's \"{branch}\" points to non-existent node \"{key}\".",
+      "orderLookupNeedsVar": "Look up order needs the variable that holds the order number.",
+      "orderLookupNeedsBranch": "Look up order needs a node for the \"{branch}\" branch.",
+      "orderLookupMissingBranch": "Look up order's \"{branch}\" points to non-existent node \"{key}\".",
       "setTagNeedsMode": "Set-tag needs a mode (add or remove).",
       "setTagNeedsTag": "Set-tag needs a tag to apply.",
       "setTagNeedsNext": "Set-tag must point to a next node.",

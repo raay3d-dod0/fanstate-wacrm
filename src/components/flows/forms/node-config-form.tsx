@@ -185,6 +185,46 @@ export function NodeConfigForm({
         />
       );
 
+    case "order_lookup": {
+      const c = cfg as { order_var?: string; found_next?: string; not_found_next?: string };
+      return (
+        <>
+          <div>
+            <label className="mb-1 block text-xs text-muted-foreground">
+              {t("orderVarLabel")}
+            </label>
+            <Input
+              value={c.order_var ?? ""}
+              onChange={(e) =>
+                onUpdateConfig({
+                  order_var: e.target.value.replace(/[^a-zA-Z0-9_]/g, ""),
+                })
+              }
+              placeholder="order_number"
+              className="bg-muted font-mono text-xs"
+            />
+            <p className="mt-1 text-[10px] text-muted-foreground">{t("orderVarHelp")}</p>
+          </div>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <NextNodeRow
+              value={c.found_next ?? ""}
+              allNodes={allNodes}
+              currentKey={node.node_key}
+              onChange={(v) => onUpdateConfig({ found_next: v })}
+              label={t("orderFoundAdvance")}
+            />
+            <NextNodeRow
+              value={c.not_found_next ?? ""}
+              allNodes={allNodes}
+              currentKey={node.node_key}
+              onChange={(v) => onUpdateConfig({ not_found_next: v })}
+              label={t("orderNotFoundAdvance")}
+            />
+          </div>
+        </>
+      );
+    }
+
     case "set_tag":
       return (
         <SetTagForm

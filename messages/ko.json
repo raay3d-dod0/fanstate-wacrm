@@ -1473,6 +1473,10 @@
         "valueLabel": "값",
         "ifTrueAdvance": "참일 경우 → 다음 진행",
         "ifFalseAdvance": "거짓일 경우 → 다음 진행",
+        "orderVarLabel": "주문 번호 변수",
+        "orderVarHelp": "앞에서 입력받은 주문 번호(예: 입력 수집). 결과를 vars order_status_reply, order_status, order_tracking_url에 저장합니다. 주문 전화번호가 이 WhatsApp 번호와 같을 때만 답합니다.",
+        "orderFoundAdvance": "찾으면 다음으로 이동",
+        "orderNotFoundAdvance": "못 찾으면(또는 번호 불일치) 다음으로 이동",
         "actionLabel": "액션",
         "addTag": "태그 추가",
         "removeTag": "태그 제거",
@@ -1536,6 +1540,10 @@
         "set_tag": {
           "label": "연락처 태그 지정",
           "blurb": "연락처 태그를 추가하거나 제거합니다"
+        },
+        "order_lookup": {
+          "label": "주문 조회",
+          "blurb": "Shopify 주문과 상태를 확인합니다"
         },
         "handoff": {
           "label": "상담원에게 인계",
@@ -2645,6 +2653,9 @@
       "operatorNeedsValue": "연산자 \"{operator}\"는 보통 비교 값이 필요합니다 — 값이 비어 있으면 비어 있는 대상과만 일치합니다.",
       "conditionNeedsBranch": "조건의 \"{branch}\" 분기에 노드가 필요합니다.",
       "conditionMissingBranch": "조건의 \"{branch}\"이(가) 존재하지 않는 노드 \"{key}\"을(를) 가리킵니다.",
+      "orderLookupNeedsVar": "주문 조회에는 주문 번호가 담긴 변수가 필요합니다.",
+      "orderLookupNeedsBranch": "주문 조회의 \"{branch}\" 분기에 노드가 필요합니다.",
+      "orderLookupMissingBranch": "주문 조회의 \"{branch}\"이(가) 존재하지 않는 노드 \"{key}\"을(를) 가리킵니다.",
       "setTagNeedsMode": "연락처 태그 지정에는 모드(추가 또는 제거)가 필요합니다.",
       "setTagNeedsTag": "연락처 태그 지정에는 적용할 태그가 필요합니다.",
       "setTagNeedsNext": "연락처 태그 지정 노드는 다음 노드를 가리켜야 합니다.",

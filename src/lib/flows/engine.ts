@@ -43,6 +43,7 @@ import { decideFallback, resolveFallbackPolicy } from "./fallback";
 import { addContactTagAndDispatch } from "@/lib/contacts/tag-events";
 import { removeContactTag } from "@/lib/contacts/tag-write";
 import { checkRunTimeout, markRunTimedOut, type RunTimeoutCheck } from "./timeout";
+import { lookupOrderForContact } from "@/lib/shopify/order-lookup";
 import {
   type CollectInputNodeConfig,
   type ConditionNodeConfig,
@@ -51,6 +52,7 @@ import {
   type FlowNodeRow,
   type FlowRow,
   type FlowRunRow,
+  type OrderLookupNodeConfig,
   type ParsedInbound,
   type SendButtonsNodeConfig,
   type SendListNodeConfig,
@@ -778,6 +780,34 @@ async function advanceFromNodeKey(
         branch === "true" ? cfg.true_next : cfg.false_next;
       await logEvent(db, run.id, "node_entered", node.node_key, {
         condition_result: branch,
+        advancing_to: currentKey,
+      });
+      continue;
+    }
+    if (node.node_type === "order_lookup") {
+      const cfg = node.config as unknown as OrderLookupNodeConfig;
+      const { data: contact } = await db
+        .from("contacts")
+        .select("phone")
+        .eq("id", run.contact_id!)
+        .maybeSingle();
+      const raw = run.vars?.[cfg.order_var];
+      const result = await lookupOrderForContact(
+        typeof raw === "string" ? raw : raw == null ? null : String(raw),
+        (contact as { phone?: string | null } | null)?.phone ?? null,
+      );
+      const newVars = {
+        ...run.vars,
+        order_status: result.status,
+        order_status_reply: result.reply ?? "",
+        order_tracking_url: result.trackingUrl ?? "",
+        ...(result.orderName ? { order_name: result.orderName } : {}),
+      };
+      await db.from("flow_runs").update({ vars: newVars }).eq("id", run.id);
+      run.vars = newVars;
+      currentKey = result.answered ? cfg.found_next : cfg.not_found_next;
+      await logEvent(db, run.id, "node_entered", node.node_key, {
+        order_lookup_result: result.status,
         advancing_to: currentKey,
       });
       continue;

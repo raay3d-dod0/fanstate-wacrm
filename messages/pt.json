@@ -1473,6 +1473,10 @@
         "valueLabel": "Valor",
         "ifTrueAdvance": "Se verdadeiro → avançar para",
         "ifFalseAdvance": "Se falso → avançar para",
+        "orderVarLabel": "Variável do número do pedido",
+        "orderVarHelp": "O número do pedido capturado antes (por ex. com Coletar resposta). Salva o resultado nas vars order_status_reply, order_status e order_tracking_url. Só responde se o telefone do pedido for este número de WhatsApp.",
+        "orderFoundAdvance": "Se encontrado, avançar para",
+        "orderNotFoundAdvance": "Se não encontrado (ou o número não confere), avançar para",
         "actionLabel": "Ação",
         "addTag": "Adicionar tag",
         "removeTag": "Remover tag",
@@ -1536,6 +1540,10 @@
         "set_tag": {
           "label": "Marcar contato",
           "blurb": "Adiciona ou remove uma tag do contato"
+        },
+        "order_lookup": {
+          "label": "Buscar pedido",
+          "blurb": "Consulta um pedido da Shopify e seu status"
         },
         "handoff": {
           "label": "Transferir para agente",
@@ -2645,6 +2653,9 @@
       "operatorNeedsValue": "O operador \"{operator}\" normalmente espera um valor de comparação — um valor vazio só vai corresponder a assuntos vazios.",
       "conditionNeedsBranch": "A condição precisa de um nó para o ramo \"{branch}\".",
       "conditionMissingBranch": "O ramo \"{branch}\" da condição aponta para um nó inexistente: \"{key}\".",
+      "orderLookupNeedsVar": "Buscar pedido precisa da variável com o número do pedido.",
+      "orderLookupNeedsBranch": "Buscar pedido precisa de um nó para o ramo \"{branch}\".",
+      "orderLookupMissingBranch": "O ramo \"{branch}\" de Buscar pedido aponta para um nó inexistente: \"{key}\".",
       "setTagNeedsMode": "O nó Marcar contato precisa de um modo (adicionar ou remover).",
       "setTagNeedsTag": "O nó Marcar contato precisa de uma tag para aplicar.",
       "setTagNeedsNext": "O nó Marcar contato precisa apontar para um próximo nó.",

@@ -24,6 +24,7 @@ import {
   ListPlus,
   MessageCircle,
   Paperclip,
+  PackageSearch,
   PlayCircle,
   Tag,
   UserPlus,
@@ -49,6 +50,7 @@ export type NodeType =
   | 'collect_input'
   | 'condition'
   | 'set_tag'
+  | 'order_lookup'
   | 'handoff'
   | 'end';
 
@@ -145,6 +147,12 @@ export const NODE_META: Record<
     color: 'text-pink-400',
     category: 'logic',
   },
+  order_lookup: {
+    slugSeed: 'Look up order',
+    icon: PackageSearch,
+    color: 'text-lime-400',
+    category: 'logic',
+  },
   handoff: {
     slugSeed: 'Handoff to agent',
     icon: UserPlus,
@@ -195,6 +203,7 @@ const NODE_HUE: Record<NodeType, { l: number; c: number; h: number }> = {
   collect_input: { l: 0.65, c: 0.1, h: 185 }, // teal — capture
   condition: { l: 0.72, c: 0.15, h: 65 }, // amber — a fork in the road
   set_tag: { l: 0.65, c: 0.15, h: 350 }, // pink
+  order_lookup: { l: 0.68, c: 0.15, h: 130 }, // lime — checks the store
   handoff: { l: 0.65, c: 0.17, h: 16 }, // rose — hands off
   end: { l: 0.55, c: 0.01, h: 260 }, // neutral grey — terminal
 };
@@ -368,6 +377,10 @@ export function summarizeNode(
           : truncate(prompt);
       }
       return varKey ? `→ vars.${varKey}` : null;
+    }
+    case 'order_lookup': {
+      const varKey = typeof cfg.order_var === 'string' ? cfg.order_var : '';
+      return varKey ? `Shopify order from vars.${varKey}` : null;
     }
     case 'condition': {
       const subjectKey =

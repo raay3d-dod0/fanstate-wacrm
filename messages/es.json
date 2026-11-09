@@ -1473,6 +1473,10 @@
         "valueLabel": "Valor",
         "ifTrueAdvance": "Si es verdadero → avanzar a",
         "ifFalseAdvance": "Si es falso → avanzar a",
+        "orderVarLabel": "Variable del número de pedido",
+        "orderVarHelp": "El número de pedido capturado antes (p. ej. con Recoger respuesta). Guarda el resultado en las vars order_status_reply, order_status y order_tracking_url. Solo responde si el teléfono del pedido coincide con este número de WhatsApp.",
+        "orderFoundAdvance": "Si se encuentra, avanzar a",
+        "orderNotFoundAdvance": "Si no se encuentra (o el número no coincide), avanzar a",
         "actionLabel": "Acción",
         "addTag": "Agregar etiqueta",
         "removeTag": "Quitar etiqueta",
@@ -1536,6 +1540,10 @@
         "set_tag": {
           "label": "Etiquetar contacto",
           "blurb": "Agrega o quita una etiqueta del contacto"
+        },
+        "order_lookup": {
+          "label": "Buscar pedido",
+          "blurb": "Consulta un pedido de Shopify y su estado"
         },
         "handoff": {
           "label": "Transferir a agente",
@@ -2645,6 +2653,9 @@
       "operatorNeedsValue": "El operador \"{operator}\" normalmente espera un valor de comparación; un valor vacío solo coincidirá con sujetos vacíos.",
       "conditionNeedsBranch": "La condición necesita un nodo para la rama \"{branch}\".",
       "conditionMissingBranch": "La rama \"{branch}\" de la condición apunta a un nodo inexistente: \"{key}\".",
+      "orderLookupNeedsVar": "Buscar pedido necesita la variable que contiene el número de pedido.",
+      "orderLookupNeedsBranch": "Buscar pedido necesita un nodo para la rama \"{branch}\".",
+      "orderLookupMissingBranch": "La rama \"{branch}\" de Buscar pedido apunta a un nodo inexistente: \"{key}\".",
       "setTagNeedsMode": "El nodo Etiquetar contacto necesita un modo (agregar o quitar).",
       "setTagNeedsTag": "El nodo Etiquetar contacto necesita una etiqueta para aplicar.",
       "setTagNeedsNext": "El nodo Etiquetar contacto debe apuntar a un nodo siguiente.",

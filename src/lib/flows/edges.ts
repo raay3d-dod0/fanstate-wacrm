@@ -61,6 +61,29 @@ export function deriveCanvasEdges(nodes: BuilderNode[]): CanvasEdge[] {
         break;
       }
 
+      case "order_lookup": {
+        const c = cfg as { found_next?: string; not_found_next?: string };
+        if (c.found_next && knownKeys.has(c.found_next)) {
+          edges.push({
+            id: `${node.node_key}--found--${c.found_next}`,
+            source: node.node_key,
+            target: c.found_next,
+            sourceHandle: "found",
+            label: "found",
+          });
+        }
+        if (c.not_found_next && knownKeys.has(c.not_found_next)) {
+          edges.push({
+            id: `${node.node_key}--not_found--${c.not_found_next}`,
+            source: node.node_key,
+            target: c.not_found_next,
+            sourceHandle: "not_found",
+            label: "not found",
+          });
+        }
+        break;
+      }
+
       case "condition": {
         const trueNext = (cfg as { true_next?: string }).true_next;
         const falseNext = (cfg as { false_next?: string }).false_next;
@@ -187,6 +210,12 @@ export function outgoingSlots(node: BuilderNode): OutgoingSlot[] {
         { id: "false", label: "false" },
       ];
 
+    case "order_lookup":
+      return [
+        { id: "found", label: "found" },
+        { id: "not_found", label: "not found" },
+      ];
+
     case "send_buttons": {
       const buttons = Array.isArray((cfg as { buttons?: unknown }).buttons)
         ? ((cfg as { buttons: Array<Record<string, unknown>> }).buttons)
@@ -259,6 +288,11 @@ export function applyEdgeConnection(
     case "condition":
       if (sourceHandle === "true") return { true_next: targetKey };
       if (sourceHandle === "false") return { false_next: targetKey };
+      return null;
+
+    case "order_lookup":
+      if (sourceHandle === "found") return { found_next: targetKey };
+      if (sourceHandle === "not_found") return { not_found_next: targetKey };
       return null;
 
     case "send_buttons": {
@@ -350,6 +384,18 @@ function patchedConfigWithoutKey(
       const next = (cfg as { next_node_key?: string }).next_node_key;
       if (next !== deletedKey) return null;
       return { ...cfg, next_node_key: "" };
+    }
+
+    case "order_lookup": {
+      const c = cfg as { found_next?: string; not_found_next?: string };
+      const foundMatch = c.found_next === deletedKey;
+      const notFoundMatch = c.not_found_next === deletedKey;
+      if (!foundMatch && !notFoundMatch) return null;
+      return {
+        ...cfg,
+        ...(foundMatch ? { found_next: "" } : {}),
+        ...(notFoundMatch ? { not_found_next: "" } : {}),
+      };
     }
 
     case "condition": {
