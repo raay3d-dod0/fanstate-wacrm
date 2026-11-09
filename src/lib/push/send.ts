@@ -42,10 +42,21 @@ export async function sendPushToAccount(
   try {
     if (!ensureConfigured()) return;
 
+    // Membership is checked at send time, not trusted from the row: a
+    // user removed from the account (or who moved accounts) keeps their
+    // old subscription rows until pruned, and must not receive messages.
+    const { data: members, error: memberErr } = await db
+      .from("profiles")
+      .select("user_id")
+      .eq("account_id", accountId);
+    if (memberErr || !members || members.length === 0) return;
+    const memberIds = members.map((m) => m.user_id as string);
+
     const { data: subs, error } = await db
       .from("push_subscriptions")
-      .select("id, endpoint, p256dh, auth")
-      .eq("account_id", accountId);
+      .select("id, endpoint, p256dh, auth, user_id")
+      .eq("account_id", accountId)
+      .in("user_id", memberIds);
     if (error || !subs || subs.length === 0) return;
 
     const body = JSON.stringify(payload);

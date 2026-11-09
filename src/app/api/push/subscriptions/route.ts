@@ -12,6 +12,31 @@ import { NextResponse } from "next/server";
 
 import { getCurrentAccount, toErrorResponse } from "@/lib/auth/account";
 
+/**
+ * Push endpoints must point at a known browser push service. Web Push
+ * is a server-to-server POST to whatever URL the client hands us, so an
+ * unvetted endpoint would turn the webhook into an SSRF primitive.
+ */
+const ALLOWED_PUSH_HOSTS: ReadonlyArray<RegExp> = [
+  /^fcm\.googleapis\.com$/,                 // Chrome / Chromium / Android
+  /^updates\.push\.services\.mozilla\.com$/, // Firefox
+  /^[a-z0-9-]+\.push\.apple\.com$/,          // Safari / iOS
+  /^[a-z0-9-]+\.notify\.windows\.com$/,      // Edge legacy (WNS)
+  /^[a-z0-9.-]*\.push\.services\.mozilla\.com$/,
+];
+
+function isAllowedPushEndpoint(endpoint: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(endpoint);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== "https:" || url.username || url.password) return false;
+  const host = url.hostname.toLowerCase();
+  return ALLOWED_PUSH_HOSTS.some((re) => re.test(host));
+}
+
 interface SubscriptionBody {
   endpoint?: string;
   keys?: { p256dh?: string; auth?: string };
@@ -26,7 +51,8 @@ export async function POST(request: Request) {
     const auth = body?.keys?.auth;
     if (
       typeof endpoint !== "string" ||
-      !endpoint.startsWith("https://") ||
+      endpoint.length > 2048 ||
+      !isAllowedPushEndpoint(endpoint) ||
       typeof p256dh !== "string" ||
       typeof auth !== "string"
     ) {
