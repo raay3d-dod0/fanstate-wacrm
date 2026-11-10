@@ -29,7 +29,7 @@ describe('parseAbandonedCart', () => {
     })
     expect(c).toEqual({
       cartId: 'abc123',
-      phone: '9876543210',
+      phone: '+919876543210',
       customerName: 'Raayed Mohammed',
       email: 'r@x.co',
       total: 2877.6,
@@ -39,5 +39,16 @@ describe('parseAbandonedCart', () => {
   it('copes with an empty or unexpected payload', () => {
     expect(parseAbandonedCart({})).toMatchObject({ cartId: null, phone: null, total: null })
     expect(parseAbandonedCart(null)).toMatchObject({ phone: null })
+  })
+  it('takes the shopper name, not the product title in items[].name', () => {
+    const c = parseAbandonedCart({
+      cart_id: 'c1',
+      first_name: 'Raayed',
+      last_name: 'Mohammed',
+      phone_number: '9876543210',
+      items: [{ name: 'Agumbe Ghat - Black / A4' }],
+    })
+    expect(c.customerName).toBe('Raayed Mohammed')
+    expect(c.phone).toBe('+919876543210')
   })
 })

@@ -1,5 +1,7 @@
 import { timingSafeEqual } from 'node:crypto'
 
+import { normalizeOrderPhone } from '@/lib/shopify/orders'
+
 /**
  * Helpers for the Fastrr (Shiprocket Checkout) abandoned-cart webhook.
  *
@@ -81,9 +83,13 @@ export function parseAbandonedCart(payload: Json): ParsedCart {
   const last = findField(payload, ['last_name', 'lastname'])
   return {
     cartId: findField(payload, ['cart_id', 'cartid', 'checkout_id', 'token', 'cart_token', 'id']),
-    phone: findField(payload, ['phone', 'phone_number', 'mobile', 'mobile_number', 'contact', 'contact_number']),
+    phone: normalizeOrderPhone(
+      findField(payload, ['phone_number', 'phone', 'mobile', 'mobile_number', 'contact', 'contact_number']),
+    ),
+    // Not the bare key `name`: in Fastrr's payload that is the product
+    // title inside `items`.
     customerName:
-      findField(payload, ['customer_name', 'name', 'full_name']) ??
+      findField(payload, ['customer_name', 'full_name']) ??
       ([first, last].filter(Boolean).join(' ') || null),
     email: findField(payload, ['email', 'email_id', 'customer_email']),
     total: total && Number.isFinite(Number(total)) ? Number(total) : null,
