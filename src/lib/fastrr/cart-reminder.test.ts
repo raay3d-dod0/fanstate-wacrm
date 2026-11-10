@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 
 import {
+  cartAmount,
   cartCreatedAt,
   cartFirstName,
   cartImageUrl,
@@ -55,5 +56,12 @@ describe('cart fields', () => {
   it('reads Fastrr time as India time', () => {
     expect(cartCreatedAt(payload, '2026-11-10T05:36:28Z').toISOString()).toBe('2026-11-10T04:36:25.746Z')
     expect(cartCreatedAt({}, '2026-11-10T05:36:28Z').toISOString()).toBe('2026-11-10T05:36:28.000Z')
+  })
+})
+
+describe('cartAmount', () => {
+  it('formats the cart total in rupees', () => {
+    expect(cartAmount({ total_price: 1199, currency: 'INR' })).toBe('₹1,199')
+    expect(cartAmount({ total_price: '2877.6' })).toBe('₹2,877.60')
   })
 })

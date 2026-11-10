@@ -1,7 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 import { shopifyAdminConfigured, shopifyGraphql } from '@/lib/shopify/admin'
-import { cleanTemplateValue, normalizeOrderPhone } from '@/lib/shopify/orders'
+import { cleanTemplateValue, formatOrderTotal, normalizeOrderPhone } from '@/lib/shopify/orders'
+import { decrypt } from '@/lib/whatsapp/encryption'
 import { resolveConversationByPhone } from '@/lib/whatsapp/resolve-conversation'
 import { sendMessageToConversation } from '@/lib/whatsapp/send-message'
 
@@ -16,6 +17,16 @@ import { sendMessageToConversation } from '@/lib/whatsapp/send-message'
 
 export const CART_TEMPLATE_NAME = 'fanstate_cart_reminder'
 export const CART_TEMPLATE_LANGUAGE = 'en'
+/**
+ * Plain "checkout not completed" notice submitted as UTILITY (founder
+ * 2026-11-10, after Meta's marketing limit, error 131049, dropped the
+ * marketing reminder). Used only while Meta has it APPROVED *and* still
+ * in the UTILITY category; if Meta moves it to marketing we fall back to
+ * the marketing reminder. Body: {{1}} first name, {{2}} items, {{3}}
+ * amount; its one URL button is `https://fanstate.shop/{{1}}`.
+ */
+export const UTILITY_TEMPLATE_NAME = 'fanstate_checkout_pending'
+const UTILITY_URL_BUTTON_INDEX = 0
 /**
  * The approved template's buttons: 0 "I have a question", 1 "Stop
  * reminders" (quick replies), 2 "Complete my order" with the URL
@@ -106,6 +117,44 @@ export function cartCreatedAt(payload: Json, receivedAt: string): Date {
     if (!Number.isNaN(d.getTime())) return d
   }
   return new Date(receivedAt)
+}
+
+/** "₹1,199" from Fastrr's total_price + currency. */
+export function cartAmount(payload: Json): string {
+  const raw = payload.total_price
+  const amount = typeof raw === 'number' || typeof raw === 'string' ? String(raw) : '0'
+  return formatOrderTotal(amount, str(payload.currency) ?? 'INR')
+}
+
+interface WaConfig {
+  wabaId: string
+  accessToken: string
+}
+
+async function waConfig(db: SupabaseClient, accountId: string): Promise<WaConfig> {
+  const { data } = await db.from('whatsapp_config').select('waba_id, access_token').eq('account_id', accountId).single()
+  const row = data as { waba_id?: string; access_token?: string } | null
+  if (!row?.waba_id || !row.access_token) throw new Error('WhatsApp is not configured')
+  return { wabaId: row.waba_id, accessToken: decrypt(row.access_token) }
+}
+
+/**
+ * The template's status and category as Meta has them right now. Our
+ * own table is only refreshed by a manual sync, and Meta can move a
+ * utility template to marketing at any time.
+ */
+async function liveTemplate(
+  config: WaConfig,
+  name: string,
+): Promise<{ status: string; category: string } | null> {
+  const url = new URL(`https://graph.facebook.com/v21.0/${config.wabaId}/message_templates`)
+  url.searchParams.set('name', name)
+  url.searchParams.set('fields', 'name,language,status,category')
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${config.accessToken}` } })
+  if (!res.ok) throw new Error(`Could not read template ${name} from Meta (${res.status})`)
+  const body = (await res.json()) as { data?: Array<{ name: string; language: string; status: string; category: string }> }
+  const t = (body.data ?? []).find((x) => x.name === name && x.language === CART_TEMPLATE_LANGUAGE)
+  return t ? { status: String(t.status).toUpperCase(), category: String(t.category).toUpperCase() } : null
 }
 
 export interface CartRow {
@@ -233,17 +282,16 @@ export async function remindCart(db: SupabaseClient, row: CartRow, now = new Dat
       return finish({ status: 'recovered', reason: 'Shopper already ordered' })
     }
 
-    const { data: template } = await db
-      .from('message_templates')
-      .select('status')
-      .eq('account_id', row.account_id)
-      .eq('name', CART_TEMPLATE_NAME)
-      .eq('language', CART_TEMPLATE_LANGUAGE)
-      .maybeSingle()
-    if ((template as { status?: string } | null)?.status !== 'APPROVED') {
-      // Put it back so it can be sent once Meta approves the template.
-      await db.from('fastrr_abandoned_carts').update({ status: 'received', error: `Template ${CART_TEMPLATE_NAME} is not approved yet` }).eq('id', row.id)
-      return { status: 'skipped', reason: 'Template not approved yet' }
+    const config = await waConfig(db, row.account_id)
+    const utility = await liveTemplate(config, UTILITY_TEMPLATE_NAME)
+    const useUtility = utility?.status === 'APPROVED' && utility.category === 'UTILITY'
+    if (!useUtility) {
+      const marketing = await liveTemplate(config, CART_TEMPLATE_NAME)
+      if (marketing?.status !== 'APPROVED') {
+        // Put it back so it can be sent once Meta approves a template.
+        await db.from('fastrr_abandoned_carts').update({ status: 'received', error: 'No approved reminder template yet' }).eq('id', row.id)
+        return { status: 'skipped', reason: 'Template not approved yet' }
+      }
     }
 
     const ship = (payload.shipping_address ?? {}) as Json
@@ -254,18 +302,32 @@ export async function remindCart(db: SupabaseClient, row: CartRow, now = new Dat
       return finish({ status: 'skipped', reason: 'Shopper asked us to stop' })
     }
 
+    const firstName = cleanTemplateValue(cartFirstName(payload), 60)
+    const items = cleanTemplateValue(describeCartItems(payload), 120)
+    const suffix = cartResumeSuffix(resumeId)
     const image = cartImageUrl(payload)
-    const result = await sendMessageToConversation(db, row.account_id, {
-      conversationId,
-      messageType: 'template',
-      templateName: CART_TEMPLATE_NAME,
-      templateLanguage: CART_TEMPLATE_LANGUAGE,
-      templateMessageParams: {
-        body: [cleanTemplateValue(cartFirstName(payload), 60), cleanTemplateValue(describeCartItems(payload), 120)],
-        ...(image ? { headerMediaUrl: image } : {}),
-        buttonParams: { [CART_URL_BUTTON_INDEX]: cartResumeSuffix(resumeId) },
-      },
-    })
+    const result = useUtility
+      ? await sendMessageToConversation(db, row.account_id, {
+          conversationId,
+          messageType: 'template',
+          templateName: UTILITY_TEMPLATE_NAME,
+          templateLanguage: CART_TEMPLATE_LANGUAGE,
+          templateMessageParams: {
+            body: [firstName, items, cleanTemplateValue(cartAmount(payload), 40)],
+            buttonParams: { [UTILITY_URL_BUTTON_INDEX]: suffix },
+          },
+        })
+      : await sendMessageToConversation(db, row.account_id, {
+          conversationId,
+          messageType: 'template',
+          templateName: CART_TEMPLATE_NAME,
+          templateLanguage: CART_TEMPLATE_LANGUAGE,
+          templateMessageParams: {
+            body: [firstName, items],
+            ...(image ? { headerMediaUrl: image } : {}),
+            buttonParams: { [CART_URL_BUTTON_INDEX]: suffix },
+          },
+        })
     return finish({ status: 'reminded', messageId: result.whatsappMessageId })
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
