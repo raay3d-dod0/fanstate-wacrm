@@ -39,6 +39,17 @@ export function cartResumeSuffix(resumeId: string): string {
 /** Carts older than this when we get to them are not worth a reminder. */
 const MAX_CART_AGE_MS = 48 * 60 * 60 * 1000
 const PER_PHONE_GAP_MS = 24 * 60 * 60 * 1000
+/** A retry may go out up to this long after the cart was made. */
+const MAX_RETRY_CART_AGE_MS = 72 * 60 * 60 * 1000
+/**
+ * Statuses that mean a reminder already went out for the cart.
+ * `reminded`: first send done (a retry may still follow);
+ * `retried`: the one next-day retry went out; `reminder_done`: checked
+ * for a retry and none was needed.
+ */
+export const REMINDED_STATUSES = ['reminded', 'retried', 'reminder_done']
+/** Meta's per-user marketing limit ("healthy ecosystem engagement"). */
+const META_PER_USER_LIMIT = '131049'
 
 const STORE_HOSTS = new Set(['fanstate.shop', 'www.fanstate.shop'])
 const IMAGE_HOSTS = new Set(['cdn.shopify.com'])
@@ -166,6 +177,7 @@ export interface CartRow {
   status: string
   payload: Json
   received_at: string
+  reminded_at?: string | null
 }
 
 export type ReminderOutcome =
@@ -216,17 +228,41 @@ async function optedOut(db: SupabaseClient, conversationId: string): Promise<boo
   )
 }
 
+/** Was the first reminder in this chat dropped by Meta's per-user limit? */
+async function firstSendBlocked(db: SupabaseClient, conversationId: string, remindedAt: string): Promise<boolean> {
+  const at = new Date(remindedAt).getTime()
+  const { data } = await db
+    .from('messages')
+    .select('status, error_code')
+    .eq('conversation_id', conversationId)
+    .in('template_name', [CART_TEMPLATE_NAME, UTILITY_TEMPLATE_NAME])
+    .gte('created_at', new Date(at - 10 * 60 * 1000).toISOString())
+    .lte('created_at', new Date(at + 10 * 60 * 1000).toISOString())
+  const rows = (data ?? []) as Array<{ status: string | null; error_code: string | number | null }>
+  return rows.length > 0 && rows.every((m) => m.status === 'failed' && String(m.error_code) === META_PER_USER_LIMIT)
+}
+
 /**
  * Decide and send for one stored cart. The row is claimed first
- * (received → sending) so a duplicate webhook or a manual re-run can
- * never send twice.
+ * (received → sending, or reminded → sending for a retry) so a
+ * duplicate webhook or a re-run can never send twice.
+ *
+ * `retry`: the one next-day attempt, only for a cart whose first
+ * reminder Meta dropped with 131049, at least 24 h later (Meta: wait at
+ * least 24 hours; sooner can lock the person out for another 24 h).
  */
-export async function remindCart(db: SupabaseClient, row: CartRow, now = new Date()): Promise<ReminderOutcome> {
+export async function remindCart(
+  db: SupabaseClient,
+  row: CartRow,
+  now = new Date(),
+  mode: 'first' | 'retry' = 'first',
+): Promise<ReminderOutcome> {
+  const retry = mode === 'retry'
   const { data: claimed } = await db
     .from('fastrr_abandoned_carts')
     .update({ status: 'sending', error: null })
     .eq('id', row.id)
-    .eq('status', 'received')
+    .eq('status', retry ? 'reminded' : 'received')
     .select('id')
   if (!claimed || claimed.length === 0) return { status: 'skipped', reason: 'Already handled' }
 
@@ -235,8 +271,8 @@ export async function remindCart(db: SupabaseClient, row: CartRow, now = new Dat
       .from('fastrr_abandoned_carts')
       .update(
         outcome.status === 'reminded'
-          ? { status: 'reminded', reminded_at: new Date().toISOString(), error: null }
-          : { status: outcome.status, error: outcome.reason },
+          ? { status: retry ? 'retried' : 'reminded', reminded_at: new Date().toISOString(), error: null }
+          : { status: retry && outcome.status === 'skipped' ? 'reminder_done' : outcome.status, error: outcome.reason },
       )
       .eq('id', row.id)
     return outcome
@@ -251,30 +287,35 @@ export async function remindCart(db: SupabaseClient, row: CartRow, now = new Dat
     if (!resumeId) return finish({ status: 'skipped', reason: 'Checkout link is not on fanstate.shop' })
 
     const createdAt = cartCreatedAt(payload, row.received_at)
-    if (now.getTime() - createdAt.getTime() > MAX_CART_AGE_MS) {
-      return finish({ status: 'skipped', reason: 'Cart older than 48 hours' })
+    if (now.getTime() - createdAt.getTime() > (retry ? MAX_RETRY_CART_AGE_MS : MAX_CART_AGE_MS)) {
+      return finish({ status: 'skipped', reason: retry ? 'Cart too old for a retry' : 'Cart older than 48 hours' })
+    }
+    if (retry && (!row.reminded_at || now.getTime() - new Date(row.reminded_at).getTime() < PER_PHONE_GAP_MS)) {
+      // Too early: put it back untouched for the next run.
+      await db.from('fastrr_abandoned_carts').update({ status: 'reminded' }).eq('id', row.id)
+      return { status: 'skipped', reason: 'Less than 24 hours since the first reminder' }
     }
 
-    // One reminder per cart.
-    if (row.cart_id) {
+    // One reminder per cart (the retry is this cart's second try).
+    if (row.cart_id && !retry) {
       const { count } = await db
         .from('fastrr_abandoned_carts')
         .select('id', { count: 'exact', head: true })
         .eq('account_id', row.account_id)
         .eq('cart_id', row.cart_id)
-        .eq('status', 'reminded')
+        .in('status', REMINDED_STATUSES)
       if ((count ?? 0) > 0) return finish({ status: 'skipped', reason: 'This cart was already reminded' })
     }
 
     // At most one reminder per phone number a day.
     const { data: recent } = await db
       .from('fastrr_abandoned_carts')
-      .select('phone, payload')
+      .select('id, phone, payload')
       .eq('account_id', row.account_id)
-      .eq('status', 'reminded')
+      .in('status', REMINDED_STATUSES)
       .gte('reminded_at', new Date(now.getTime() - PER_PHONE_GAP_MS).toISOString())
-    const remindedToday = ((recent ?? []) as Array<{ phone: string | null; payload: Json }>).some(
-      (r) => cartPhone(r.payload ?? {}, r.phone) === phone,
+    const remindedToday = ((recent ?? []) as Array<{ id: string; phone: string | null; payload: Json }>).some(
+      (r) => r.id !== row.id && cartPhone(r.payload ?? {}, r.phone) === phone,
     )
     if (remindedToday) return finish({ status: 'skipped', reason: 'Number already reminded in the last 24 hours' })
 
@@ -289,7 +330,10 @@ export async function remindCart(db: SupabaseClient, row: CartRow, now = new Dat
       const marketing = await liveTemplate(config, CART_TEMPLATE_NAME)
       if (marketing?.status !== 'APPROVED') {
         // Put it back so it can be sent once Meta approves a template.
-        await db.from('fastrr_abandoned_carts').update({ status: 'received', error: 'No approved reminder template yet' }).eq('id', row.id)
+        await db
+          .from('fastrr_abandoned_carts')
+          .update({ status: retry ? 'reminded' : 'received', error: 'No approved reminder template yet' })
+          .eq('id', row.id)
         return { status: 'skipped', reason: 'Template not approved yet' }
       }
     }
@@ -300,6 +344,9 @@ export async function remindCart(db: SupabaseClient, row: CartRow, now = new Dat
 
     if (await optedOut(db, conversationId)) {
       return finish({ status: 'skipped', reason: 'Shopper asked us to stop' })
+    }
+    if (retry && !(await firstSendBlocked(db, conversationId, row.reminded_at!))) {
+      return finish({ status: 'skipped', reason: 'First reminder was not blocked by Meta' })
     }
 
     const firstName = cleanTemplateValue(cartFirstName(payload), 60)
@@ -322,6 +369,7 @@ export async function remindCart(db: SupabaseClient, row: CartRow, now = new Dat
           messageType: 'template',
           templateName: CART_TEMPLATE_NAME,
           templateLanguage: CART_TEMPLATE_LANGUAGE,
+          marketingApi: true,
           templateMessageParams: {
             body: [firstName, items],
             ...(image ? { headerMediaUrl: image } : {}),

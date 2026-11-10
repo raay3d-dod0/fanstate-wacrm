@@ -86,6 +86,8 @@ export interface SendMessageParams {
   templateParams?: string[];
   /** Structured template params (header/body/buttons). */
   templateMessageParams?: unknown;
+  /** Send the template via Meta's Marketing Messages API (marketing templates only). */
+  marketingApi?: boolean;
   /** Structured payload for `messageType === 'interactive'`. */
   interactivePayload?: InteractiveMessagePayload | null;
   replyToMessageId?: string | null;
@@ -204,6 +206,7 @@ export async function sendMessageToConversation(
     templateMessageParams,
     interactivePayload,
     replyToMessageId,
+    marketingApi = false,
   } = params;
 
   if (!conversationId) {
@@ -355,6 +358,7 @@ export async function sendMessageToConversation(
         messageParams: templateMessageParams ?? undefined,
         params: templateParams || [],
         contextMessageId,
+        marketingApi,
       });
       return result.messageId;
     }

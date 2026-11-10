@@ -520,6 +520,14 @@ export interface SendTemplateMessageArgs {
   messageParams?: SendTimeParams
   /** Meta's message_id of the message being replied to. */
   contextMessageId?: string
+  /**
+   * Send through Meta's Marketing Messages API (`/marketing_messages`)
+   * instead of Cloud API `/messages`. Marketing templates only. Meta's
+   * default product policy falls back to Cloud API when the account
+   * has not accepted the MM API terms, so this is safe either way.
+   * Cloud API stops carrying marketing templates on 2027-10-13.
+   */
+  marketingApi?: boolean
 }
 
 /**
@@ -546,8 +554,9 @@ export async function sendTemplateMessage(
     template,
     messageParams,
     contextMessageId,
+    marketingApi = false,
   } = args
-  const url = `${META_API_BASE}/${phoneNumberId}/messages`
+  const url = `${META_API_BASE}/${phoneNumberId}/${marketingApi ? 'marketing_messages' : 'messages'}`
 
   const templatePayload: Record<string, unknown> = {
     name: templateName,
